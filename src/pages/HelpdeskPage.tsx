@@ -100,7 +100,7 @@ export default function HelpdeskPage() {
           </div>
           <div>
             <p className="text-sm font-medium text-foreground">AI Assistant</p>
-            <p className="text-xs text-muted-foreground">AI-powered answers coming soon — API integration ready</p>
+            <p className="text-xs text-muted-foreground">Powered by Groq — auto-replies to every question</p>
           </div>
         </motion.div>
 
