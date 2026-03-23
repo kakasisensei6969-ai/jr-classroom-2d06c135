@@ -4,8 +4,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { db, type HelpdeskPost } from "@/lib/mockData";
-import { MessageCircle, Send, Bot } from "lucide-react";
+import { MessageCircle, Send, Bot, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 
 export default function HelpdeskPage() {
   const [posts, setPosts] = useState<HelpdeskPost[]>(db.getHelpdesk());
