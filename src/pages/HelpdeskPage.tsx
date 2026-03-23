@@ -143,15 +143,27 @@ export default function HelpdeskPage() {
               </div>
               <p className="text-sm text-foreground mb-4">{post.content}</p>
 
+              {/* AI Loading */}
+              {aiLoading[post.id] && (
+                <div className="border-t border-border pt-3 mb-3 flex items-center gap-2 pl-4 text-muted-foreground">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span className="text-xs">AI Assistant is thinking...</span>
+                </div>
+              )}
+
               {/* Comments */}
               {post.comments.length > 0 && (
                 <div className="border-t border-border pt-3 space-y-3 mb-3">
                   {post.comments.map((c) => (
-                    <div key={c.id} className="flex gap-2 pl-4">
-                      <MessageCircle className="w-4 h-4 text-muted-foreground mt-0.5 shrink-0" />
+                    <div key={c.id} className={`flex gap-2 pl-4 ${c.authorName.includes("AI") ? "bg-accent/30 rounded-lg p-2 -ml-2" : ""}`}>
+                      {c.authorName.includes("AI") ? (
+                        <Bot className="w-4 h-4 text-primary mt-0.5 shrink-0" />
+                      ) : (
+                        <MessageCircle className="w-4 h-4 text-muted-foreground mt-0.5 shrink-0" />
+                      )}
                       <div>
                         <p className="text-xs font-medium text-foreground">{c.authorName} <span className="text-muted-foreground font-normal">· {new Date(c.createdAt).toLocaleDateString()}</span></p>
-                        <p className="text-sm text-muted-foreground">{c.content}</p>
+                        <p className="text-sm text-muted-foreground whitespace-pre-wrap">{c.content}</p>
                       </div>
                     </div>
                   ))}
