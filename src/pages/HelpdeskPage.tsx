@@ -12,9 +12,40 @@ export default function HelpdeskPage() {
   const [posts, setPosts] = useState<HelpdeskPost[]>(db.getHelpdesk());
   const [newPost, setNewPost] = useState("");
   const [commentInputs, setCommentInputs] = useState<Record<string, string>>({});
+  const [aiLoading, setAiLoading] = useState<Record<string, boolean>>({});
   const user = db.getCurrentUser();
 
-  const addPost = () => {
+  const getAiReply = async (postId: string, question: string, currentPosts: HelpdeskPost[]) => {
+    setAiLoading((prev) => ({ ...prev, [postId]: true }));
+    try {
+      const { data, error } = await supabase.functions.invoke("helpdesk-ai", {
+        body: { question },
+      });
+      if (error) throw error;
+      const reply = data?.reply || "Could not generate a response.";
+      const updated = currentPosts.map((p) => {
+        if (p.id === postId) {
+          return {
+            ...p,
+            comments: [
+              ...p.comments,
+              { id: `ai-${Date.now()}`, authorName: "🤖 AI Assistant", content: reply, createdAt: new Date().toISOString() },
+            ],
+          };
+        }
+        return p;
+      });
+      setPosts(updated);
+      db.setHelpdesk(updated);
+    } catch (err) {
+      console.error("AI reply error:", err);
+      toast.error("AI assistant could not respond right now.");
+    } finally {
+      setAiLoading((prev) => ({ ...prev, [postId]: false }));
+    }
+  };
+
+  const addPost = async () => {
     if (!newPost.trim()) return;
     const post: HelpdeskPost = {
       id: Date.now().toString(),
@@ -28,6 +59,8 @@ export default function HelpdeskPage() {
     db.setHelpdesk(updated);
     setNewPost("");
     toast.success("Question posted!");
+    // Auto-trigger AI reply
+    getAiReply(post.id, post.content, updated);
   };
 
   const addComment = (postId: string) => {
