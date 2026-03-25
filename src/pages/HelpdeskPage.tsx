@@ -8,6 +8,8 @@ import { db } from "@/lib/mockData";
 import { MessageCircle, Send, Bot, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 type PostWithComments = HelpdeskPost & { comments: HelpdeskComment[] };
 
@@ -142,7 +144,11 @@ export default function HelpdeskPage() {
                       )}
                       <div>
                         <p className="text-xs font-medium text-foreground">{c.author_name} <span className="text-muted-foreground font-normal">· {new Date(c.created_at).toLocaleDateString()}</span></p>
-                        <p className="text-sm text-muted-foreground whitespace-pre-wrap">{c.content}</p>
+                        <div className="text-sm text-muted-foreground prose prose-sm dark:prose-invert max-w-none">
+  <ReactMarkdown remarkPlugins={[remarkGfm]}>
+    {c.content}
+  </ReactMarkdown>
+</div>
                       </div>
                     </div>
                   ))}
