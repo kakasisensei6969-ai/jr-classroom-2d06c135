@@ -44,7 +44,7 @@ export default function HomePage() {
               Learn Smart, Grow Faster
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Link to="/login">
+              <Link to="/dashboard">
                 <Button variant="hero" size="lg" className="text-base px-8">
                   Get Started
                 </Button>
