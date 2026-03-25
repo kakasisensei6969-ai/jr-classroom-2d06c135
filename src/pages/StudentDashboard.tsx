@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { db, type User, type Module } from "@/lib/mockData";
+import { db } from "@/lib/mockData";
+import { cloudDb, type Student, type ModuleWithContents } from "@/lib/supabaseDb";
 import { Button } from "@/components/ui/button";
 import { BookOpen, Video, FileText, Star, LogOut, ChevronRight, Play, ExternalLink, Menu, X } from "lucide-react";
 import { motion } from "framer-motion";
@@ -8,27 +9,33 @@ import { toast } from "sonner";
 
 export default function StudentDashboard() {
   const navigate = useNavigate();
-  const [user, setUser] = useState<User | null>(null);
-  const [modules, setModules] = useState<Module[]>([]);
-  const [selectedModule, setSelectedModule] = useState<Module | null>(null);
+  const [student, setStudent] = useState<Student | null>(null);
+  const [modules, setModules] = useState<ModuleWithContents[]>([]);
+  const [selectedModule, setSelectedModule] = useState<ModuleWithContents | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
   useEffect(() => {
     const u = db.getCurrentUser();
     if (!u || u.role !== "student") { navigate("/login"); return; }
-    setUser(u);
-    setModules(db.getStudentModules(u.id));
+    loadData(u.id);
   }, [navigate]);
+
+  const loadData = async (studentId: string) => {
+    const s = await cloudDb.getStudentById(studentId);
+    if (!s) { navigate("/login"); return; }
+    setStudent(s);
+    const mods = await cloudDb.getStudentModules(studentId);
+    setModules(mods);
+  };
 
   const handleLogout = () => { db.logout(); navigate("/"); toast.success("Logged out"); };
 
-  if (!user) return null;
+  if (!student) return null;
 
   const contentByType = (type: string) => selectedModule?.contents.filter((c) => c.type === type) || [];
 
   return (
     <div className="min-h-screen flex pt-16">
-      {/* Mobile toggle */}
       <button
         className="fixed top-20 left-4 z-40 md:hidden w-10 h-10 rounded-lg glass flex items-center justify-center"
         onClick={() => setSidebarOpen(!sidebarOpen)}
@@ -36,29 +43,26 @@ export default function StudentDashboard() {
         {sidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
       </button>
 
-      {/* Sidebar */}
       <aside className={`fixed md:sticky top-16 left-0 h-[calc(100vh-4rem)] w-72 bg-card border-r border-border z-30 flex flex-col transition-transform duration-300 ${sidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"}`}>
-        {/* Profile */}
         <div className="p-5 border-b border-border">
           <div className="flex items-center gap-3">
             <div className="w-12 h-12 rounded-xl gradient-primary flex items-center justify-center text-lg font-bold text-primary-foreground">
-              {user.name[0]}
+              {student.name[0]}
             </div>
             <div className="min-w-0">
-              <p className="font-semibold text-sm text-foreground truncate">{user.name}</p>
-              <p className="text-xs text-muted-foreground">{user.email}</p>
+              <p className="font-semibold text-sm text-foreground truncate">{student.name}</p>
+              <p className="text-xs text-muted-foreground">{student.email}</p>
             </div>
           </div>
-          {user.rating !== undefined && (
+          {student.rating !== undefined && (
             <div className="mt-3 flex items-center gap-1.5">
               <Star className="w-4 h-4 text-yellow-500 fill-yellow-500" />
-              <span className="text-sm font-medium text-foreground">{user.rating}</span>
+              <span className="text-sm font-medium text-foreground">{student.rating}</span>
               <span className="text-xs text-muted-foreground">/ 5.0 rating</span>
             </div>
           )}
         </div>
 
-        {/* Modules list */}
         <div className="flex-1 overflow-y-auto p-3">
           <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider px-2 mb-2">Modules</p>
           <div className="space-y-1">
@@ -85,12 +89,11 @@ export default function StudentDashboard() {
         </div>
       </aside>
 
-      {/* Main */}
       <main className="flex-1 p-4 md:p-8 min-w-0">
         {!selectedModule ? (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col items-center justify-center h-full text-center">
             <BookOpen className="w-16 h-16 text-muted-foreground/30 mb-4" />
-            <h2 className="font-display text-xl font-semibold text-foreground mb-2">Welcome, {user.name}!</h2>
+            <h2 className="font-display text-xl font-semibold text-foreground mb-2">Welcome, {student.name}!</h2>
             <p className="text-muted-foreground text-sm">Select a module from the sidebar to get started.</p>
           </motion.div>
         ) : (
@@ -98,7 +101,6 @@ export default function StudentDashboard() {
             <h2 className="font-display text-2xl font-bold text-foreground mb-1">{selectedModule.title}</h2>
             <p className="text-sm text-muted-foreground mb-8">{selectedModule.description}</p>
 
-            {/* Notes */}
             {contentByType("note").length > 0 && (
               <Section title="Class Notes" icon={<FileText className="w-5 h-5" />}>
                 {contentByType("note").map((c) => (
@@ -111,7 +113,6 @@ export default function StudentDashboard() {
               </Section>
             )}
 
-            {/* Videos */}
             {contentByType("video").length > 0 && (
               <Section title="Class Videos" icon={<Video className="w-5 h-5" />}>
                 {contentByType("video").map((c) => (
@@ -125,7 +126,6 @@ export default function StudentDashboard() {
               </Section>
             )}
 
-            {/* Assignments */}
             {contentByType("assignment").length > 0 && (
               <Section title="Assignments" icon={<FileText className="w-5 h-5" />}>
                 {contentByType("assignment").map((c) => (
@@ -143,7 +143,6 @@ export default function StudentDashboard() {
               </Section>
             )}
 
-            {/* Extra Videos */}
             {contentByType("extra-video").length > 0 && (
               <Section title="Extra Videos" icon={<Video className="w-5 h-5" />}>
                 {contentByType("extra-video").map((c) => (

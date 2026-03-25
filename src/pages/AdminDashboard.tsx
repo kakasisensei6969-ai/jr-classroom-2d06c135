@@ -1,12 +1,13 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { db, type User, type Module, type ModuleContent } from "@/lib/mockData";
+import { db } from "@/lib/mockData";
+import { cloudDb, type Student, type ModuleWithContents } from "@/lib/supabaseDb";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Users, BookOpen, LogOut, Plus, Trash2, Edit, Star, Save, X, Menu,
-  ChevronRight,
+  ChevronRight, Loader2,
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
@@ -19,23 +20,21 @@ type Tab = "students" | "modules";
 
 export default function AdminDashboard() {
   const navigate = useNavigate();
-  const [admin, setAdmin] = useState<User | null>(null);
+  const [admin, setAdmin] = useState<any>(null);
   const [tab, setTab] = useState<Tab>("students");
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [loading, setLoading] = useState(false);
 
-  // Students
-  const [students, setStudents] = useState<User[]>([]);
+  const [students, setStudents] = useState<Student[]>([]);
   const [showStudentDialog, setShowStudentDialog] = useState(false);
-  const [editStudent, setEditStudent] = useState<Partial<User>>({});
+  const [editStudent, setEditStudent] = useState<Partial<Student>>({});
 
-  // Modules
-  const [modules, setModules] = useState<Module[]>([]);
+  const [modules, setModules] = useState<ModuleWithContents[]>([]);
   const [showModuleDialog, setShowModuleDialog] = useState(false);
-  const [editModule, setEditModule] = useState<Partial<Module>>({});
+  const [editModule, setEditModule] = useState<{ id?: string; title: string; description: string; visible_to: string; studentIds: string[] }>({ title: "", description: "", visible_to: "all", studentIds: [] });
   const [showContentDialog, setShowContentDialog] = useState(false);
-  const [editContent, setEditContent] = useState<Partial<ModuleContent & { moduleId: string }>>({});
+  const [editContent, setEditContent] = useState<{ id?: string; moduleId: string; title: string; type: string; url: string }>({ moduleId: "", title: "", type: "note", url: "" });
 
-  // Rating
   const [ratingDialog, setRatingDialog] = useState<{ studentId: string; rating: number } | null>(null);
 
   useEffect(() => {
@@ -45,111 +44,81 @@ export default function AdminDashboard() {
     refreshData();
   }, [navigate]);
 
-  const refreshData = () => {
-    const allUsers = db.getUsers();
-    setStudents(allUsers.filter((u) => u.role === "student"));
-    setModules(db.getModules());
+  const refreshData = async () => {
+    setLoading(true);
+    const [s, m] = await Promise.all([cloudDb.getStudents(), cloudDb.getModulesWithContents()]);
+    setStudents(s);
+    setModules(m);
+    setLoading(false);
   };
 
   const handleLogout = () => { db.logout(); navigate("/"); toast.success("Logged out"); };
 
-  // Student CRUD
-  const saveStudent = () => {
-    const users = db.getUsers();
-    if (editStudent.id) {
-      const updated = users.map((u) => u.id === editStudent.id ? { ...u, ...editStudent } as User : u);
-      db.setUsers(updated);
-    } else {
-      const newUser: User = {
-        id: "s" + Date.now(),
-        username: editStudent.username || "",
-        password: editStudent.password || "",
-        role: "student",
-        name: editStudent.name || "",
-        email: editStudent.email || "",
-        rating: 0,
-        assignedModules: [],
-      };
-      db.setUsers([...users, newUser]);
-    }
+  const saveStudent = async () => {
+    await cloudDb.upsertStudent({
+      id: editStudent.id,
+      username: editStudent.username || "",
+      password: editStudent.password || "",
+      name: editStudent.name || "",
+      email: editStudent.email || "",
+    } as any);
     setShowStudentDialog(false);
     setEditStudent({});
-    refreshData();
+    await refreshData();
     toast.success("Student saved!");
   };
 
-  const deleteStudent = (id: string) => {
-    db.setUsers(db.getUsers().filter((u) => u.id !== id));
-    refreshData();
+  const deleteStudent = async (id: string) => {
+    await cloudDb.deleteStudent(id);
+    await refreshData();
     toast.success("Student deleted");
   };
 
-  const saveRating = () => {
+  const saveRating = async () => {
     if (!ratingDialog) return;
-    const users = db.getUsers();
-    const updated = users.map((u) => u.id === ratingDialog.studentId ? { ...u, rating: ratingDialog.rating } : u);
-    db.setUsers(updated);
+    await cloudDb.updateRating(ratingDialog.studentId, ratingDialog.rating);
     setRatingDialog(null);
-    refreshData();
+    await refreshData();
     toast.success("Rating updated!");
   };
 
-  // Module CRUD
-  const saveModule = () => {
-    const mods = db.getModules();
-    if (editModule.id) {
-      const updated = mods.map((m) => m.id === editModule.id ? { ...m, ...editModule } as Module : m);
-      db.setModules(updated);
-    } else {
-      const newMod: Module = {
-        id: "m" + Date.now(),
-        title: editModule.title || "",
-        description: editModule.description || "",
-        contents: [],
-        visibleTo: editModule.visibleTo || "all",
-      };
-      db.setModules([...mods, newMod]);
-    }
+  const saveModule = async () => {
+    await cloudDb.upsertModule({
+      id: editModule.id,
+      title: editModule.title,
+      description: editModule.description,
+      visible_to: editModule.visible_to,
+      studentIds: editModule.studentIds,
+    });
     setShowModuleDialog(false);
-    setEditModule({});
-    refreshData();
+    setEditModule({ title: "", description: "", visible_to: "all", studentIds: [] });
+    await refreshData();
     toast.success("Module saved!");
   };
 
-  const deleteModule = (id: string) => {
-    db.setModules(db.getModules().filter((m) => m.id !== id));
-    refreshData();
+  const deleteModule = async (id: string) => {
+    await cloudDb.deleteModule(id);
+    await refreshData();
     toast.success("Module deleted");
   };
 
-  const saveContent = () => {
-    if (!editContent.moduleId) return;
-    const mods = db.getModules();
-    const updated = mods.map((m) => {
-      if (m.id !== editContent.moduleId) return m;
-      if (editContent.id && m.contents.some((c) => c.id === editContent.id)) {
-        return { ...m, contents: m.contents.map((c) => c.id === editContent.id ? { ...c, ...editContent } as ModuleContent : c) };
-      }
-      const newContent: ModuleContent = {
-        id: "c" + Date.now(),
-        title: editContent.title || "",
-        type: (editContent.type as ModuleContent["type"]) || "note",
-        url: editContent.url || "",
-      };
-      return { ...m, contents: [...m.contents, newContent] };
+  const saveContent = async () => {
+    await cloudDb.upsertContent({
+      id: editContent.id,
+      module_id: editContent.moduleId,
+      title: editContent.title,
+      type: editContent.type,
+      url: editContent.url,
     });
-    db.setModules(updated);
     setShowContentDialog(false);
-    setEditContent({});
-    refreshData();
+    setEditContent({ moduleId: "", title: "", type: "note", url: "" });
+    await refreshData();
     toast.success("Content saved!");
   };
 
-  const deleteContent = (moduleId: string, contentId: string) => {
-    const mods = db.getModules();
-    const updated = mods.map((m) => m.id === moduleId ? { ...m, contents: m.contents.filter((c) => c.id !== contentId) } : m);
-    db.setModules(updated);
-    refreshData();
+  const deleteContent = async (contentId: string) => {
+    await cloudDb.deleteContent(contentId);
+    await refreshData();
     toast.success("Content deleted");
   };
 
@@ -195,7 +164,9 @@ export default function AdminDashboard() {
       </aside>
 
       <main className="flex-1 p-4 md:p-8 min-w-0">
-        {tab === "students" && (
+        {loading && <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>}
+
+        {!loading && tab === "students" && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
             <div className="flex items-center justify-between mb-6">
               <h2 className="font-display text-2xl font-bold text-foreground">Students</h2>
@@ -214,7 +185,7 @@ export default function AdminDashboard() {
                     <p className="text-xs text-muted-foreground">@{s.username} · {s.email}</p>
                   </div>
                   <div className="flex items-center gap-2 flex-wrap">
-                    <Button size="sm" variant="ghost" onClick={() => setRatingDialog({ studentId: s.id, rating: s.rating || 0 })}>
+                    <Button size="sm" variant="ghost" onClick={() => setRatingDialog({ studentId: s.id, rating: Number(s.rating) || 0 })}>
                       <Star className="w-4 h-4 mr-1 text-yellow-500" /> {s.rating || 0}
                     </Button>
                     <Button size="sm" variant="ghost" onClick={() => { setEditStudent(s); setShowStudentDialog(true); }}>
@@ -230,11 +201,11 @@ export default function AdminDashboard() {
           </motion.div>
         )}
 
-        {tab === "modules" && (
+        {!loading && tab === "modules" && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
             <div className="flex items-center justify-between mb-6">
               <h2 className="font-display text-2xl font-bold text-foreground">Modules</h2>
-              <Button variant="hero" size="sm" onClick={() => { setEditModule({}); setShowModuleDialog(true); }}>
+              <Button variant="hero" size="sm" onClick={() => { setEditModule({ title: "", description: "", visible_to: "all", studentIds: [] }); setShowModuleDialog(true); }}>
                 <Plus className="w-4 h-4 mr-1" /> Add Module
               </Button>
             </div>
@@ -246,11 +217,11 @@ export default function AdminDashboard() {
                       <h3 className="font-display font-semibold text-foreground">{m.title}</h3>
                       <p className="text-sm text-muted-foreground">{m.description}</p>
                       <p className="text-xs text-muted-foreground mt-1">
-                        Visible to: {m.visibleTo === "all" ? "All students" : `${(m.visibleTo as string[]).length} specific students`}
+                        Visible to: {m.visible_to === "all" ? "All students" : `${m.visibleStudentIds.length} specific students`}
                       </p>
                     </div>
                     <div className="flex gap-1">
-                      <Button size="sm" variant="ghost" onClick={() => { setEditModule(m); setShowModuleDialog(true); }}>
+                      <Button size="sm" variant="ghost" onClick={() => { setEditModule({ id: m.id, title: m.title, description: m.description, visible_to: m.visible_to, studentIds: m.visibleStudentIds }); setShowModuleDialog(true); }}>
                         <Edit className="w-4 h-4" />
                       </Button>
                       <Button size="sm" variant="ghost" className="text-destructive" onClick={() => deleteModule(m.id)}>
@@ -266,17 +237,17 @@ export default function AdminDashboard() {
                           <p className="text-sm text-foreground">{c.title}</p>
                         </div>
                         <div className="flex gap-1">
-                          <Button size="sm" variant="ghost" onClick={() => { setEditContent({ ...c, moduleId: m.id }); setShowContentDialog(true); }}>
+                          <Button size="sm" variant="ghost" onClick={() => { setEditContent({ id: c.id, moduleId: m.id, title: c.title, type: c.type, url: c.url }); setShowContentDialog(true); }}>
                             <Edit className="w-3 h-3" />
                           </Button>
-                          <Button size="sm" variant="ghost" className="text-destructive" onClick={() => deleteContent(m.id, c.id)}>
+                          <Button size="sm" variant="ghost" className="text-destructive" onClick={() => deleteContent(c.id)}>
                             <Trash2 className="w-3 h-3" />
                           </Button>
                         </div>
                       </div>
                     ))}
                   </div>
-                  <Button size="sm" variant="outline" className="mt-3" onClick={() => { setEditContent({ moduleId: m.id }); setShowContentDialog(true); }}>
+                  <Button size="sm" variant="outline" className="mt-3" onClick={() => { setEditContent({ moduleId: m.id, title: "", type: "note", url: "" }); setShowContentDialog(true); }}>
                     <Plus className="w-3 h-3 mr-1" /> Add Content
                   </Button>
                 </div>
@@ -307,11 +278,11 @@ export default function AdminDashboard() {
         <DialogContent>
           <DialogHeader><DialogTitle>{editModule.id ? "Edit" : "Add"} Module</DialogTitle></DialogHeader>
           <div className="space-y-3">
-            <Input placeholder="Module Title" value={editModule.title || ""} onChange={(e) => setEditModule({ ...editModule, title: e.target.value })} />
-            <Textarea placeholder="Description" value={editModule.description || ""} onChange={(e) => setEditModule({ ...editModule, description: e.target.value })} />
+            <Input placeholder="Module Title" value={editModule.title} onChange={(e) => setEditModule({ ...editModule, title: e.target.value })} />
+            <Textarea placeholder="Description" value={editModule.description} onChange={(e) => setEditModule({ ...editModule, description: e.target.value })} />
             <Select
-              value={editModule.visibleTo === "all" || !editModule.visibleTo ? "all" : "specific"}
-              onValueChange={(v) => setEditModule({ ...editModule, visibleTo: v === "all" ? "all" : [] })}
+              value={editModule.visible_to === "all" ? "all" : "specific"}
+              onValueChange={(v) => setEditModule({ ...editModule, visible_to: v, studentIds: v === "all" ? [] : editModule.studentIds })}
             >
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
@@ -319,19 +290,18 @@ export default function AdminDashboard() {
                 <SelectItem value="specific">Specific Students</SelectItem>
               </SelectContent>
             </Select>
-            {Array.isArray(editModule.visibleTo) && (
+            {editModule.visible_to === "specific" && (
               <div className="space-y-1">
                 <p className="text-xs text-muted-foreground">Select students:</p>
                 {students.map((s) => (
                   <label key={s.id} className="flex items-center gap-2 text-sm text-foreground">
                     <input
                       type="checkbox"
-                      checked={(editModule.visibleTo as string[]).includes(s.id)}
+                      checked={editModule.studentIds.includes(s.id)}
                       onChange={(e) => {
-                        const current = editModule.visibleTo as string[];
                         setEditModule({
                           ...editModule,
-                          visibleTo: e.target.checked ? [...current, s.id] : current.filter((id) => id !== s.id),
+                          studentIds: e.target.checked ? [...editModule.studentIds, s.id] : editModule.studentIds.filter((id) => id !== s.id),
                         });
                       }}
                     />
@@ -352,8 +322,8 @@ export default function AdminDashboard() {
         <DialogContent>
           <DialogHeader><DialogTitle>{editContent.id ? "Edit" : "Add"} Content</DialogTitle></DialogHeader>
           <div className="space-y-3">
-            <Input placeholder="Content Title" value={editContent.title || ""} onChange={(e) => setEditContent({ ...editContent, title: e.target.value })} />
-            <Select value={editContent.type || "note"} onValueChange={(v) => setEditContent({ ...editContent, type: v as ModuleContent["type"] })}>
+            <Input placeholder="Content Title" value={editContent.title} onChange={(e) => setEditContent({ ...editContent, title: e.target.value })} />
+            <Select value={editContent.type} onValueChange={(v) => setEditContent({ ...editContent, type: v })}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="note">Class Note</SelectItem>
@@ -362,7 +332,7 @@ export default function AdminDashboard() {
                 <SelectItem value="extra-video">Extra Video</SelectItem>
               </SelectContent>
             </Select>
-            <Textarea placeholder={editContent.type === "assignment" ? "Assignment text or Drive link" : "URL (Drive link or YouTube embed URL)"} value={editContent.url || ""} onChange={(e) => setEditContent({ ...editContent, url: e.target.value })} />
+            <Textarea placeholder={editContent.type === "assignment" ? "Assignment text or Drive link" : "URL (Drive link or YouTube embed URL)"} value={editContent.url} onChange={(e) => setEditContent({ ...editContent, url: e.target.value })} />
           </div>
           <DialogFooter>
             <Button variant="hero" onClick={saveContent}><Save className="w-4 h-4 mr-1" /> Save</Button>
