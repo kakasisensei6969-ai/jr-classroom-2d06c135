@@ -39,11 +39,7 @@ const STORAGE_KEYS = {
   currentUser: "jr_current_user",
 };
 
-const defaultUsers: User[] = [
-  { id: "admin-1", username: "admin", password: "admin123", role: "admin", name: "Admin" },
-  { id: "s1", username: "student1", password: "pass123", role: "student", name: "Rahim Ahmed", email: "rahim@example.com", rating: 4.5, assignedModules: [] },
-  { id: "s2", username: "student2", password: "pass123", role: "student", name: "Fatima Khan", email: "fatima@example.com", rating: 4.0, assignedModules: [] },
-];
+const defaultUsers: User[] = [];
 
 const defaultModules: Module[] = [
   {
