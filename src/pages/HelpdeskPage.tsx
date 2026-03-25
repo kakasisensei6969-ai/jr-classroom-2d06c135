@@ -146,7 +146,7 @@ export default function HelpdeskPage() {
                         <p className="text-xs font-medium text-foreground">{c.author_name} <span className="text-muted-foreground font-normal">· {new Date(c.created_at).toLocaleDateString()}</span></p>
                         <div className="text-sm text-muted-foreground prose prose-sm dark:prose-invert max-w-none">
   <ReactMarkdown remarkPlugins={[remarkGfm]}>
-    {c.content}
+    {c.content.replace(/<br\s*\/?>/gi, '\n')}
   </ReactMarkdown>
 </div>
                       </div>
