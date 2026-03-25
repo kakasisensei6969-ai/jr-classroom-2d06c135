@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react"; //m
+import { useState, useEffect } from "react"; 
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,15 +19,45 @@ export default function HelpdeskPage() {
   const [commentInputs, setCommentInputs] = useState<Record<string, string>>({});
   const [aiLoading, setAiLoading] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(true);
+  
+  // নতুন স্টেটসমূহ (Pagination-এর জন্য)
+  const [page, setPage] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
+  const PAGE_SIZE = 10;
+
   const user = db.getCurrentUser();
 
   useEffect(() => {
-    loadPosts();
+    loadPosts(0, true);
   }, []);
 
-  const loadPosts = async () => {
-    const data = await cloudDb.getHelpdeskPosts();
-    setPosts(data);
+  // আপডেট করা লোডিং ফাংশন
+  const loadPosts = async (pageNumber: number, isInitial = false) => {
+    setLoading(true);
+    const from = pageNumber * PAGE_SIZE;
+    const to = from + PAGE_SIZE - 1;
+
+    // সরাসরি সুপাবেস থেকে রেঞ্জ অনুযায়ী ডেটা আনা
+    const { data, error } = await supabase
+      .from('helpdesk_posts')
+      .select('*, comments:helpdesk_comments(*)')
+      .order('created_at', { ascending: false })
+      .range(from, to);
+
+    if (error) {
+      console.error("Error:", error);
+      toast.error("Failed to load posts");
+    } else if (data) {
+      if (data.length < PAGE_SIZE) {
+        setHasMore(false);
+      }
+      
+      if (isInitial) {
+        setPosts(data as PostWithComments[]);
+      } else {
+        setPosts(prev => [...prev, ...data as PostWithComments[]]);
+      }
+    }
     setLoading(false);
   };
 
@@ -40,7 +70,10 @@ export default function HelpdeskPage() {
       if (error) throw error;
       const reply = data?.reply || "Could not generate a response.";
       await cloudDb.addHelpdeskComment(postId, "🤖 AI Assistant", reply, true);
-      await loadPosts();
+      // AI রিপ্লাই আসার পর শুধু প্রথম পেজ রিফ্রেশ দিলেই হবে
+      loadPosts(0, true);
+      setPage(0);
+      setHasMore(true);
     } catch (err) {
       console.error("AI reply error:", err);
       toast.error("AI assistant could not respond right now.");
@@ -56,7 +89,10 @@ export default function HelpdeskPage() {
     if (!post) { toast.error("Failed to post"); return; }
     setNewPost("");
     toast.success("Question posted!");
-    await loadPosts();
+    // নতুন পোস্ট করার পর লিস্টটি একদম শুরু থেকে দেখাবে
+    await loadPosts(0, true);
+    setPage(0);
+    setHasMore(true);
     getAiReply(post.id, post.content);
   };
 
@@ -65,7 +101,14 @@ export default function HelpdeskPage() {
     if (!text) return;
     await cloudDb.addHelpdeskComment(postId, user?.name || "Anonymous", text);
     setCommentInputs({ ...commentInputs, [postId]: "" });
-    await loadPosts();
+    // কমেন্ট করার পর বর্তমান অবস্থা আপডেট রাখা
+    const { data } = await supabase
+      .from('helpdesk_posts')
+      .select('*, comments:helpdesk_comments(*)')
+      .order('created_at', { ascending: false })
+      .range(0, (page * PAGE_SIZE) + PAGE_SIZE - 1);
+    
+    if (data) setPosts(data as PostWithComments[]);
   };
 
   return (
@@ -103,10 +146,6 @@ export default function HelpdeskPage() {
         </div>
 
         <div className="space-y-6">
-          {loading && <p className="text-center text-muted-foreground py-12">Loading...</p>}
-          {!loading && posts.length === 0 && (
-            <p className="text-center text-muted-foreground py-12">No questions yet. Be the first to ask!</p>
-          )}
           {posts.map((post, i) => (
             <motion.div
               key={post.id}
@@ -133,7 +172,7 @@ export default function HelpdeskPage() {
                 </div>
               )}
 
-              {post.comments.length > 0 && (
+              {post.comments && post.comments.length > 0 && (
                 <div className="border-t border-border pt-3 space-y-3 mb-3">
                   {post.comments.map((c) => (
                     <div key={c.id} className={`flex gap-2 pl-4 ${c.is_ai ? "bg-accent/30 rounded-lg p-2 -ml-2" : ""}`}>
@@ -145,10 +184,10 @@ export default function HelpdeskPage() {
                       <div>
                         <p className="text-xs font-medium text-foreground">{c.author_name} <span className="text-muted-foreground font-normal">· {new Date(c.created_at).toLocaleDateString()}</span></p>
                         <div className="text-sm text-muted-foreground prose prose-sm dark:prose-invert max-w-none">
-  <ReactMarkdown remarkPlugins={[remarkGfm]}>
-    {c.content}
-  </ReactMarkdown>
-</div>
+                          <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                            {c.content}
+                          </ReactMarkdown>
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -169,6 +208,28 @@ export default function HelpdeskPage() {
               </div>
             </motion.div>
           ))}
+          
+          {loading && <p className="text-center text-muted-foreground py-4">Loading...</p>}
+          
+          {!loading && posts.length === 0 && (
+            <p className="text-center text-muted-foreground py-12">No questions yet. Be the first to ask!</p>
+          )}
+
+          {/* Load More বাটন */}
+          {hasMore && !loading && (
+            <div className="flex justify-center pt-4">
+              <Button 
+                variant="outline" 
+                onClick={() => {
+                  const nextPage = page + 1;
+                  setPage(nextPage);
+                  loadPosts(nextPage);
+                }}
+              >
+                Load More
+              </Button>
+            </div>
+          )}
         </div>
       </div>
     </div>
