@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { MapPin, Phone, Mail } from "lucide-react";
+import { MapPin, Phone, Mail, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -8,11 +8,39 @@ import { toast } from "sonner";
 
 export default function ContactPage() {
   const [form, setForm] = useState({ name: "", email: "", message: "" });
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    toast.success("Message sent! We'll get back to you soon.");
-    setForm({ name: "", email: "", message: "" });
+    setIsSubmitting(true);
+
+    // Web3Forms API-তে পাঠানোর জন্য ডেটা প্রস্তুত করা
+    const formData = new FormData();
+    formData.append("access_key", "5eae5d86-aad5-4e67-96fd-05cd6295016f");
+    formData.append("name", form.name);
+    formData.append("email", form.email);
+    formData.append("message", form.message);
+
+    try {
+      const response = await fetch("https://api.web3forms.com/submit", {
+        method: "POST",
+        body: formData
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        toast.success("Message sent! Your email has been received.");
+        setForm({ name: "", email: "", message: "" }); // ফর্ম খালি করা
+      } else {
+        toast.error("Something went wrong. Please try again.");
+      }
+    } catch (err) {
+      console.error("Submission error:", err);
+      toast.error("Network error. Please check your connection.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -55,6 +83,7 @@ export default function ContactPage() {
                 value={form.name}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
                 required
+                disabled={isSubmitting}
               />
               <Input
                 type="email"
@@ -62,6 +91,7 @@ export default function ContactPage() {
                 value={form.email}
                 onChange={(e) => setForm({ ...form, email: e.target.value })}
                 required
+                disabled={isSubmitting}
               />
               <Textarea
                 placeholder="Your Message"
@@ -69,8 +99,18 @@ export default function ContactPage() {
                 onChange={(e) => setForm({ ...form, message: e.target.value })}
                 required
                 rows={5}
+                disabled={isSubmitting}
               />
-              <Button type="submit" variant="hero" className="w-full">Send Message</Button>
+              <Button type="submit" variant="hero" className="w-full" disabled={isSubmitting}>
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Sending...
+                  </>
+                ) : (
+                  "Send Message"
+                )}
+              </Button>
             </form>
           </motion.div>
         </div>
