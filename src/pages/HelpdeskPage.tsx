@@ -1,21 +1,35 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { db, type HelpdeskPost } from "@/lib/mockData";
+import { cloudDb, type HelpdeskPost, type HelpdeskComment } from "@/lib/supabaseDb";
+import { db } from "@/lib/mockData";
 import { MessageCircle, Send, Bot, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 
+type PostWithComments = HelpdeskPost & { comments: HelpdeskComment[] };
+
 export default function HelpdeskPage() {
-  const [posts, setPosts] = useState<HelpdeskPost[]>(db.getHelpdesk());
+  const [posts, setPosts] = useState<PostWithComments[]>([]);
   const [newPost, setNewPost] = useState("");
   const [commentInputs, setCommentInputs] = useState<Record<string, string>>({});
   const [aiLoading, setAiLoading] = useState<Record<string, boolean>>({});
+  const [loading, setLoading] = useState(true);
   const user = db.getCurrentUser();
 
-  const getAiReply = async (postId: string, question: string, currentPosts: HelpdeskPost[]) => {
+  useEffect(() => {
+    loadPosts();
+  }, []);
+
+  const loadPosts = async () => {
+    const data = await cloudDb.getHelpdeskPosts();
+    setPosts(data);
+    setLoading(false);
+  };
+
+  const getAiReply = async (postId: string, question: string) => {
     setAiLoading((prev) => ({ ...prev, [postId]: true }));
     try {
       const { data, error } = await supabase.functions.invoke("helpdesk-ai", {
@@ -23,20 +37,8 @@ export default function HelpdeskPage() {
       });
       if (error) throw error;
       const reply = data?.reply || "Could not generate a response.";
-      const updated = currentPosts.map((p) => {
-        if (p.id === postId) {
-          return {
-            ...p,
-            comments: [
-              ...p.comments,
-              { id: `ai-${Date.now()}`, authorName: "🤖 AI Assistant", content: reply, createdAt: new Date().toISOString() },
-            ],
-          };
-        }
-        return p;
-      });
-      setPosts(updated);
-      db.setHelpdesk(updated);
+      await cloudDb.addHelpdeskComment(postId, "🤖 AI Assistant", reply, true);
+      await loadPosts();
     } catch (err) {
       console.error("AI reply error:", err);
       toast.error("AI assistant could not respond right now.");
@@ -47,40 +49,21 @@ export default function HelpdeskPage() {
 
   const addPost = async () => {
     if (!newPost.trim()) return;
-    const post: HelpdeskPost = {
-      id: Date.now().toString(),
-      authorName: user?.name || "Anonymous",
-      content: newPost,
-      createdAt: new Date().toISOString(),
-      comments: [],
-    };
-    const updated = [post, ...posts];
-    setPosts(updated);
-    db.setHelpdesk(updated);
+    const authorName = user?.name || "Anonymous";
+    const post = await cloudDb.addHelpdeskPost(authorName, newPost);
+    if (!post) { toast.error("Failed to post"); return; }
     setNewPost("");
     toast.success("Question posted!");
-    // Auto-trigger AI reply
-    getAiReply(post.id, post.content, updated);
+    await loadPosts();
+    getAiReply(post.id, post.content);
   };
 
-  const addComment = (postId: string) => {
+  const addComment = async (postId: string) => {
     const text = commentInputs[postId]?.trim();
     if (!text) return;
-    const updated = posts.map((p) => {
-      if (p.id === postId) {
-        return {
-          ...p,
-          comments: [
-            ...p.comments,
-            { id: Date.now().toString(), authorName: user?.name || "Anonymous", content: text, createdAt: new Date().toISOString() },
-          ],
-        };
-      }
-      return p;
-    });
-    setPosts(updated);
-    db.setHelpdesk(updated);
+    await cloudDb.addHelpdeskComment(postId, user?.name || "Anonymous", text);
     setCommentInputs({ ...commentInputs, [postId]: "" });
+    await loadPosts();
   };
 
   return (
@@ -93,18 +76,16 @@ export default function HelpdeskPage() {
           <p className="text-muted-foreground">Ask questions, get answers from the community</p>
         </motion.div>
 
-        {/* AI Assistant placeholder */}
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.1 }} className="glass rounded-xl p-4 mb-6 flex items-center gap-3">
           <div className="w-10 h-10 rounded-lg gradient-primary flex items-center justify-center shrink-0">
             <Bot className="w-5 h-5 text-primary-foreground" />
           </div>
           <div>
             <p className="text-sm font-medium text-foreground">AI Assistant</p>
-            <p className="text-xs text-muted-foreground">Powered by Groq — auto-replies to every question</p>
+            <p className="text-xs text-muted-foreground">Powered by AI — auto-replies to every question</p>
           </div>
         </motion.div>
 
-        {/* Post input */}
         <div className="glass rounded-xl p-4 mb-8">
           <Textarea
             placeholder="Describe your problem or question..."
@@ -119,9 +100,9 @@ export default function HelpdeskPage() {
           </div>
         </div>
 
-        {/* Posts */}
         <div className="space-y-6">
-          {posts.length === 0 && (
+          {loading && <p className="text-center text-muted-foreground py-12">Loading...</p>}
+          {!loading && posts.length === 0 && (
             <p className="text-center text-muted-foreground py-12">No questions yet. Be the first to ask!</p>
           )}
           {posts.map((post, i) => (
@@ -134,16 +115,15 @@ export default function HelpdeskPage() {
             >
               <div className="flex items-center gap-2 mb-2">
                 <div className="w-8 h-8 rounded-full gradient-primary flex items-center justify-center text-xs font-bold text-primary-foreground">
-                  {post.authorName[0]}
+                  {post.author_name[0]}
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-foreground">{post.authorName}</p>
-                  <p className="text-xs text-muted-foreground">{new Date(post.createdAt).toLocaleDateString()}</p>
+                  <p className="text-sm font-medium text-foreground">{post.author_name}</p>
+                  <p className="text-xs text-muted-foreground">{new Date(post.created_at).toLocaleDateString()}</p>
                 </div>
               </div>
               <p className="text-sm text-foreground mb-4">{post.content}</p>
 
-              {/* AI Loading */}
               {aiLoading[post.id] && (
                 <div className="border-t border-border pt-3 mb-3 flex items-center gap-2 pl-4 text-muted-foreground">
                   <Loader2 className="w-4 h-4 animate-spin" />
@@ -151,18 +131,17 @@ export default function HelpdeskPage() {
                 </div>
               )}
 
-              {/* Comments */}
               {post.comments.length > 0 && (
                 <div className="border-t border-border pt-3 space-y-3 mb-3">
                   {post.comments.map((c) => (
-                    <div key={c.id} className={`flex gap-2 pl-4 ${c.authorName.includes("AI") ? "bg-accent/30 rounded-lg p-2 -ml-2" : ""}`}>
-                      {c.authorName.includes("AI") ? (
+                    <div key={c.id} className={`flex gap-2 pl-4 ${c.is_ai ? "bg-accent/30 rounded-lg p-2 -ml-2" : ""}`}>
+                      {c.is_ai ? (
                         <Bot className="w-4 h-4 text-primary mt-0.5 shrink-0" />
                       ) : (
                         <MessageCircle className="w-4 h-4 text-muted-foreground mt-0.5 shrink-0" />
                       )}
                       <div>
-                        <p className="text-xs font-medium text-foreground">{c.authorName} <span className="text-muted-foreground font-normal">· {new Date(c.createdAt).toLocaleDateString()}</span></p>
+                        <p className="text-xs font-medium text-foreground">{c.author_name} <span className="text-muted-foreground font-normal">· {new Date(c.created_at).toLocaleDateString()}</span></p>
                         <p className="text-sm text-muted-foreground whitespace-pre-wrap">{c.content}</p>
                       </div>
                     </div>

@@ -14,7 +14,208 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      admins: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          password: string
+          username: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name?: string
+          password: string
+          username: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          password?: string
+          username?: string
+        }
+        Relationships: []
+      }
+      helpdesk_comments: {
+        Row: {
+          author_name: string
+          content: string
+          created_at: string
+          id: string
+          is_ai: boolean | null
+          post_id: string
+        }
+        Insert: {
+          author_name: string
+          content: string
+          created_at?: string
+          id?: string
+          is_ai?: boolean | null
+          post_id: string
+        }
+        Update: {
+          author_name?: string
+          content?: string
+          created_at?: string
+          id?: string
+          is_ai?: boolean | null
+          post_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "helpdesk_comments_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "helpdesk_posts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      helpdesk_posts: {
+        Row: {
+          author_name: string
+          content: string
+          created_at: string
+          id: string
+        }
+        Insert: {
+          author_name: string
+          content: string
+          created_at?: string
+          id?: string
+        }
+        Update: {
+          author_name?: string
+          content?: string
+          created_at?: string
+          id?: string
+        }
+        Relationships: []
+      }
+      module_contents: {
+        Row: {
+          created_at: string
+          id: string
+          module_id: string
+          title: string
+          type: string
+          url: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          module_id: string
+          title: string
+          type?: string
+          url?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          module_id?: string
+          title?: string
+          type?: string
+          url?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "module_contents_module_id_fkey"
+            columns: ["module_id"]
+            isOneToOne: false
+            referencedRelation: "modules"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      module_visibility: {
+        Row: {
+          id: string
+          module_id: string
+          student_id: string
+        }
+        Insert: {
+          id?: string
+          module_id: string
+          student_id: string
+        }
+        Update: {
+          id?: string
+          module_id?: string
+          student_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "module_visibility_module_id_fkey"
+            columns: ["module_id"]
+            isOneToOne: false
+            referencedRelation: "modules"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "module_visibility_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "students"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      modules: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          title: string
+          visible_to: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          title: string
+          visible_to?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          title?: string
+          visible_to?: string
+        }
+        Relationships: []
+      }
+      students: {
+        Row: {
+          created_at: string
+          email: string | null
+          id: string
+          name: string
+          password: string
+          rating: number | null
+          username: string
+        }
+        Insert: {
+          created_at?: string
+          email?: string | null
+          id?: string
+          name: string
+          password: string
+          rating?: number | null
+          username: string
+        }
+        Update: {
+          created_at?: string
+          email?: string | null
+          id?: string
+          name?: string
+          password?: string
+          rating?: number | null
+          username?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
