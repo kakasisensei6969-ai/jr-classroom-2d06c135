@@ -47,7 +47,7 @@ export function Navbar() {
             </Link>
           ) : (
             <Link to="/login">
-              <Button size="sm" variant="hero">Student Login</Button>
+              <Button size="sm" variant="hero">Login</Button>
             </Link>
           )}
         </div>
@@ -81,7 +81,7 @@ export function Navbar() {
               </Link>
             ) : (
               <Link to="/login" onClick={() => setMobileOpen(false)}>
-                <Button size="sm" variant="hero" className="w-full">Student Login</Button>
+                <Button size="sm" variant="hero" className="w-full">Login</Button>
               </Link>
             )}
           </div>
