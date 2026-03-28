@@ -14,7 +14,7 @@ export default function ContactPage() {
     e.preventDefault();
     setIsSubmitting(true);
 
-    // Web3Forms API-তে পাঠানোর জন্য ডেটা প্রস্তুত করা
+    
     const formData = new FormData();
     formData.append("access_key", "5eae5d86-aad5-4e67-96fd-05cd6295016f");
     formData.append("name", form.name);
@@ -31,7 +31,7 @@ export default function ContactPage() {
 
       if (data.success) {
         toast.success("Message sent! Your email has been received.");
-        setForm({ name: "", email: "", message: "" }); // ফর্ম খালি করা
+        setForm({ name: "", email: "", message: "" }); 
       } else {
         toast.error("Something went wrong. Please try again.");
       }
@@ -59,8 +59,8 @@ export default function ContactPage() {
               <h2 className="font-display font-semibold text-lg text-foreground">JR Classroom Team</h2>
               {[
                 { icon: MapPin, label: "Address", value: "Dhaka, Bangladesh" },
-                { icon: Phone, label: "Phone", value: "+880123456789" },
-                { icon: Mail, label: "Email", value: "support@jrclassroom.com" },
+                { icon: Phone, label: "Phone", value: "+8801765283585" },
+                { icon: Mail, label: "Email", value: "m.jahidrayhanjkt@gmail.com" },
               ].map((item, i) => (
                 <div key={i} className="flex items-start gap-3">
                   <div className="w-10 h-10 rounded-lg bg-accent flex items-center justify-center shrink-0">
