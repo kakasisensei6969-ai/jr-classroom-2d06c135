@@ -27,8 +27,8 @@ export function Footer() {
           </div>
           <div>
             <h4 className="font-semibold text-sm mb-3 text-foreground">Contact</h4>
-            <p className="text-sm text-muted-foreground">support@jrclassroom.com</p>
-            <p className="text-sm text-muted-foreground">+880123456789</p>
+            <p className="text-sm text-muted-foreground">m.jahidrayhanjkt@gmail.com</p>
+            <p className="text-sm text-muted-foreground">+8801765283585</p>
             <p className="text-sm text-muted-foreground">Dhaka, Bangladesh</p>
           </div>
         </div>
